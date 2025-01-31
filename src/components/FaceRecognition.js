@@ -1,11 +1,10 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import Webcam from 'react-webcam';
 import { initializeCollection, addFaceToCollection, searchFace } from '../api/rekognitionApi';
 import './FaceRecognition.css';
 
 const FaceRecognition = () => {
   const webcamRef = useRef(null);
-  const videoRef = useRef(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isCameraEnabled, setIsCameraEnabled] = useState(false);
   const [stream, setStream] = useState(null);
@@ -14,8 +13,34 @@ const FaceRecognition = () => {
   const [newPersonName, setNewPersonName] = useState('');
   const [error, setError] = useState(null);
   const [devices, setDevices] = useState([]);
-  const [selectedDevice, setSelectedDevice] = useState(null);
-  const [isMobileSafari] = useState(/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream);
+  const [currentDeviceIndex, setCurrentDeviceIndex] = useState(0);
+  const [windowDimensions, setWindowDimensions] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight
+  });
+  const [detectedFaces, setDetectedFaces] = useState([]);
+  const [unrecognizedFace, setUnrecognizedFace] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const lastProcessedTime = useRef(0);
+  const THROTTLE_TIME = 300; // 300ms between recognitions
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowDimensions({
+        width: window.innerWidth,
+        height: window.innerHeight
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Calculate video dimensions
+  const videoDimensions = {
+    width: Math.min(windowDimensions.width * 0.9, 1280),
+    height: Math.min(windowDimensions.height * 0.7, 720)
+  };
 
   useEffect(() => {
     const initialize = async () => {
@@ -30,27 +55,25 @@ const FaceRecognition = () => {
       const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
       console.log("Camera access granted!");
       
-      // Store the stream for later use
       setStream(mediaStream);
 
-      // Get list of available cameras after permission is granted
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoDevices = devices.filter(device => device.kind === 'videoinput');
       setDevices(videoDevices);
-      if (videoDevices.length > 0) {
-        setSelectedDevice(videoDevices[0].deviceId);
-      }
 
       setIsCameraEnabled(true);
       setError(null);
 
-      // Stop the initial stream since Webcam component will handle the video
       mediaStream.getTracks().forEach(track => track.stop());
     } catch (error) {
       console.error("Camera access denied:", error);
       setError('Camera access was denied. Please enable camera access in your browser settings.');
       setIsCameraEnabled(false);
     }
+  };
+
+  const switchCamera = () => {
+    setCurrentDeviceIndex((prevIndex) => (prevIndex + 1) % devices.length);
   };
 
   // Clean up function to stop all tracks when component unmounts
@@ -62,7 +85,7 @@ const FaceRecognition = () => {
     };
   }, [stream]);
 
-  const captureImage = () => {
+  const captureImage = useCallback(() => {
     if (!webcamRef.current || !isCameraEnabled) {
       return null;
     }
@@ -73,7 +96,7 @@ const FaceRecognition = () => {
     return fetch(imageSrc)
       .then(res => res.arrayBuffer())
       .then(buffer => new Uint8Array(buffer));
-  };
+  }, [isCameraEnabled]);
 
   const handleAddFace = async (e) => {
     e.preventDefault();
@@ -92,31 +115,86 @@ const FaceRecognition = () => {
     }
   };
 
-  const startRecognition = async () => {
+  const startRecognition = useCallback(async () => {
+    const now = Date.now();
+    if (isProcessing || now - lastProcessedTime.current < THROTTLE_TIME) {
+      return;
+    }
+
     try {
+      setIsProcessing(true);
       const imageData = await captureImage();
       if (!imageData) return;
       
       const match = await searchFace(imageData);
+      lastProcessedTime.current = Date.now();
+
       if (match) {
         setRecognizedPerson({
           name: match.Face.ExternalImageId,
-          confidence: match.Similarity
+          confidence: match.Similarity,
+          boundingBox: match.Face.BoundingBox
         });
+        setDetectedFaces([match.Face]);
+        setUnrecognizedFace(false);
+      } else if (detectedFaces.length > 0) {
+        setRecognizedPerson(null);
+        setUnrecognizedFace(true);
       } else {
         setRecognizedPerson(null);
+        setUnrecognizedFace(false);
       }
     } catch (err) {
       console.error('Error searching face:', err);
+      setDetectedFaces([]);
+      setUnrecognizedFace(false);
+    } finally {
+      setIsProcessing(false);
     }
-  };
+  }, [captureImage, detectedFaces.length]);
 
   useEffect(() => {
     if (isInitialized && !isAddingFace && isCameraEnabled) {
-      const interval = setInterval(startRecognition, 1000);
+      const interval = setInterval(startRecognition, THROTTLE_TIME);
       return () => clearInterval(interval);
     }
-  }, [isInitialized, isAddingFace, isCameraEnabled]);
+  }, [isInitialized, isAddingFace, isCameraEnabled, startRecognition]);
+
+  const renderFaceBoxes = () => {
+    if (!webcamRef.current) return null;
+
+    const video = webcamRef.current.video;
+    if (!video) return null;
+
+    return detectedFaces.map((face, index) => {
+      const { BoundingBox } = face;
+      if (!BoundingBox) return null;
+
+      // Convert normalized coordinates to pixel values
+      const boxStyle = {
+        left: `${BoundingBox.Left * 100}%`,
+        top: `${BoundingBox.Top * 100}%`,
+        width: `${BoundingBox.Width * 100}%`,
+        height: `${BoundingBox.Height * 100}%`
+      };
+
+      return (
+        <div 
+          key={index}
+          className="face-box"
+          style={boxStyle}
+        >
+          {recognizedPerson && (
+            <div className="face-label">
+              {recognizedPerson.name}
+              <br />
+              {recognizedPerson.confidence.toFixed(1)}%
+            </div>
+          )}
+        </div>
+      );
+    });
+  };
 
   if (!isInitialized) {
     return <div className="initialization-message">Initializing face recognition system...</div>;
@@ -137,69 +215,71 @@ const FaceRecognition = () => {
 
   return (
     <div className="face-recognition-container">
-      {devices.length > 1 && !isMobileSafari && (
-        <div className="camera-selector">
-          <select 
-            value={selectedDevice} 
-            onChange={(e) => setSelectedDevice(e.target.value)}
-          >
-            {devices.map((device, index) => (
-              <option key={device.deviceId} value={device.deviceId}>
-                Camera {index + 1} {device.label ? `(${device.label})` : ''}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      <div className="webcam-container">
-        <Webcam
-          ref={webcamRef}
-          audio={false}
-          screenshotFormat="image/jpeg"
-          videoConstraints={{
-            width: isMobileSafari ? { ideal: 640 } : 640,
-            height: isMobileSafari ? { ideal: 480 } : 480,
-            facingMode: 'user',
-            deviceId: !isMobileSafari ? selectedDevice : undefined,
-            aspectRatio: 1.333333333,
-            playsInline: true
-          }}
-          playsInline={true}
-          forceScreenshotSourceSize={true}
-        />
-        
-        {recognizedPerson && (
-          <div className="recognition-overlay">
-            <p>{recognizedPerson.name}</p>
-            <p>{recognizedPerson.confidence.toFixed(2)}% match</p>
-          </div>
-        )}
-      </div>
-
-      {error && <div className="error-message">{error}</div>}
-
-      <div className="controls">
-        {!isAddingFace ? (
-          <button onClick={() => setIsAddingFace(true)}>
-            Add New Face
+      {!isCameraEnabled ? (
+        <div className="camera-access-container">
+          <h2>Camera Access Required</h2>
+          <p>This app needs access to your camera to recognize faces.</p>
+          <button onClick={requestCameraAccess} className="camera-access-button">
+            Enable Camera
           </button>
-        ) : (
-          <form onSubmit={handleAddFace} className="add-face-form">
-            <input
-              type="text"
-              value={newPersonName}
-              onChange={(e) => setNewPersonName(e.target.value)}
-              placeholder="Enter person's name"
-              required
+          {error && <div className="error-message">{error}</div>}
+        </div>
+      ) : (
+        <>
+          <div className="webcam-container">
+            <Webcam
+              ref={webcamRef}
+              audio={false}
+              screenshotFormat="image/jpeg"
+              videoConstraints={{
+                width: videoDimensions.width,
+                height: videoDimensions.height,
+                deviceId: devices[currentDeviceIndex]?.deviceId
+              }}
+              style={{
+                width: videoDimensions.width,
+                height: videoDimensions.height
+              }}
             />
-            <button type="submit">Save Face</button>
-            <button type="button" onClick={() => setIsAddingFace(false)}>
-              Cancel
+            
+            <div className="face-boxes-container">
+              {renderFaceBoxes()}
+            </div>
+          </div>
+
+          {devices.length > 1 && (
+            <button onClick={switchCamera} className="camera-switch-button">
+              Switch Camera ({currentDeviceIndex + 1}/{devices.length})
             </button>
-          </form>
-        )}
-      </div>
+          )}
+
+          {error && <div className="error-message">{error}</div>}
+
+          <div className="controls">
+            {unrecognizedFace ? (
+              !isAddingFace ? (
+                <button onClick={() => setIsAddingFace(true)} className="add-face-button">
+                  Add New Face
+                </button>
+              ) : (
+                <form onSubmit={handleAddFace} className="add-face-form">
+                  <input
+                    type="text"
+                    value={newPersonName}
+                    onChange={(e) => setNewPersonName(e.target.value)}
+                    placeholder="Enter person's name"
+                    required
+                  />
+                  <button type="submit">Save Face</button>
+                  <button type="button" onClick={() => setIsAddingFace(false)}>
+                    Cancel
+                  </button>
+                </form>
+              )
+            ) : null}
+          </div>
+        </>
+      )}
     </div>
   );
 };

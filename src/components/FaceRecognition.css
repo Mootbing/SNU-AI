@@ -3,11 +3,23 @@
   flex-direction: column;
   align-items: center;
   padding: 20px;
+  min-height: 100vh;
+  box-sizing: border-box;
 }
 
 .webcam-container {
   position: relative;
   margin-bottom: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.webcam-container video {
+  transform: scaleX(-1);
 }
 
 .recognition-overlay {
@@ -18,6 +30,7 @@
   color: white;
   padding: 10px;
   border-radius: 5px;
+  font-size: 1.2em;
 }
 
 .controls {
@@ -75,29 +88,6 @@ input {
   box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
 }
 
-.webcam-container video {
-  width: 100%;
-  max-width: 640px;
-  height: auto;
-  transform: scaleX(-1); /* Mirror the video */
-}
-
-@supports (-webkit-touch-callout: none) {
-  /* iOS-specific styles */
-  .webcam-container {
-    width: 100%;
-    max-width: 640px;
-    height: auto;
-    aspect-ratio: 4/3;
-  }
-  
-  .webcam-container video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-}
-
 .camera-access-container {
   text-align: center;
   padding: 2rem;
@@ -135,4 +125,130 @@ input {
   color: #666;
   font-size: 1.2rem;
   margin: 2rem;
+}
+
+.camera-switch-button {
+  margin: 10px 0;
+  padding: 12px 24px;
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.camera-switch-button:hover {
+  background-color: #5a6268;
+}
+
+@supports (-webkit-touch-callout: none) {
+  /* iOS-specific styles */
+  .webcam-container {
+    width: 100%;
+    max-width: 640px;
+    height: auto;
+    aspect-ratio: 4/3;
+  }
+  
+  .webcam-container video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.face-boxes-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.face-box {
+  position: absolute;
+  border: 3px solid #00ff00;
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.3);
+  animation: pulse 2s infinite;
+}
+
+.face-label {
+  position: absolute;
+  top: -30px;
+  left: 0;
+  background-color: rgba(0, 255, 0, 0.8);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 14px;
+  white-space: nowrap;
+  text-align: center;
+}
+
+@keyframes pulse {
+  0% {
+    border-color: rgba(0, 255, 0, 1);
+  }
+  50% {
+    border-color: rgba(0, 255, 0, 0.5);
+  }
+  100% {
+    border-color: rgba(0, 255, 0, 1);
+  }
+}
+
+/* Ensure the face box stays within the video container */
+.webcam-container {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Adjust face box for mirrored video */
+.face-box {
+  transform: scaleX(-1);
+}
+
+.face-label {
+  transform: scaleX(-1); /* Un-mirror the text */
+}
+
+.add-face-button {
+  background-color: #28a745;
+  animation: pulse-green 2s infinite;
+}
+
+.add-face-button:hover {
+  background-color: #218838;
+}
+
+@keyframes pulse-green {
+  0% {
+    box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(40, 167, 69, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
+  }
+}
+
+.face-box.unrecognized {
+  border-color: #ffc107;
+  animation: pulse-yellow 2s infinite;
+}
+
+@keyframes pulse-yellow {
+  0% {
+    border-color: rgba(255, 193, 7, 1);
+  }
+  50% {
+    border-color: rgba(255, 193, 7, 0.5);
+  }
+  100% {
+    border-color: rgba(255, 193, 7, 1);
+  }
 } 
