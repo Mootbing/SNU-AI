@@ -44,13 +44,26 @@ const FaceRecognition = () => {
     height: Math.min(windowDimensions.height * 0.85, 1080) // Increased height percentage
   };
 
+  // Try to enable camera immediately on component mount
   useEffect(() => {
     const initialize = async () => {
-      const success = await initializeCollection();
-      setIsInitialized(success);
+      try {
+        // First initialize the collection
+        const success = await initializeCollection();
+        setIsInitialized(success);
+        
+        if (success) {
+          // Then try to get camera access
+          await requestCameraAccess();
+        }
+      } catch (err) {
+        console.error('Initialization error:', err);
+        setIsInitialized(true); // Still set initialized to show camera permission screen
+      }
     };
+    
     initialize();
-  }, []);
+  }, []); // Empty dependency array for component mount
 
   const findBackCamera = useCallback((videoDevices) => {
     return videoDevices.findIndex(device => 
@@ -80,6 +93,7 @@ const FaceRecognition = () => {
       setIsCameraEnabled(true);
       setError(null);
 
+      // Stop the initial stream since Webcam component will create its own
       mediaStream.getTracks().forEach(track => track.stop());
     } catch (error) {
       console.error("Camera access denied:", error);
