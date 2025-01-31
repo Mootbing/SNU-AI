@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import Webcam from 'react-webcam';
-import { initializeCollection, addFaceToCollection, searchFace } from '../api/rekognitionApi';
+import { initializeCollection, searchFace } from '../api/rekognitionApi';
 import './FaceRecognition.css';
 
 const FaceRecognition = () => {
@@ -9,8 +9,6 @@ const FaceRecognition = () => {
   const [isCameraEnabled, setIsCameraEnabled] = useState(false);
   const [stream, setStream] = useState(null);
   const [recognizedPerson, setRecognizedPerson] = useState(null);
-  const [isAddingFace, setIsAddingFace] = useState(false);
-  const [newPersonName, setNewPersonName] = useState('');
   const [error, setError] = useState(null);
   const [devices, setDevices] = useState([]);
   const [currentDeviceIndex, setCurrentDeviceIndex] = useState(0);
@@ -19,7 +17,6 @@ const FaceRecognition = () => {
     height: window.innerHeight
   });
   const [detectedFaces, setDetectedFaces] = useState([]);
-  const [unrecognizedFace, setUnrecognizedFace] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const lastProcessedTime = useRef(0);
   const THROTTLE_TIME = 300; // 300ms between recognitions
@@ -119,23 +116,6 @@ const FaceRecognition = () => {
       .then(buffer => new Uint8Array(buffer));
   }, [isCameraEnabled]);
 
-  const handleAddFace = async (e) => {
-    e.preventDefault();
-    try {
-      const imageData = await captureImage();
-      if (!imageData) {
-        setError('Failed to capture image. Please try again.');
-        return;
-      }
-      await addFaceToCollection(imageData, newPersonName);
-      setIsAddingFace(false);
-      setNewPersonName('');
-      setError(null);
-    } catch (err) {
-      setError('Failed to add face. Please try again.');
-    }
-  };
-
   const startRecognition = useCallback(async () => {
     const now = Date.now();
     if (isProcessing || now - lastProcessedTime.current < THROTTLE_TIME) {
@@ -157,34 +137,27 @@ const FaceRecognition = () => {
           boundingBox: match.Face.BoundingBox
         });
         setDetectedFaces([match.Face]);
-        setUnrecognizedFace(false);
-      } else if (detectedFaces.length > 0) {
-        setRecognizedPerson(null);
-        setUnrecognizedFace(true);
       } else {
         setRecognizedPerson(null);
-        setUnrecognizedFace(false);
+        setDetectedFaces([]);
       }
     } catch (err) {
       console.error('Error searching face:', err);
       setDetectedFaces([]);
-      setUnrecognizedFace(false);
     } finally {
       setIsProcessing(false);
     }
-  }, [captureImage, detectedFaces.length]);
+  }, [captureImage]);
 
   useEffect(() => {
-    if (isInitialized && !isAddingFace && isCameraEnabled) {
+    if (isInitialized && isCameraEnabled) {
       const interval = setInterval(startRecognition, THROTTLE_TIME);
       return () => clearInterval(interval);
     }
-  }, [isInitialized, isAddingFace, isCameraEnabled, startRecognition]);
+  }, [isInitialized, isCameraEnabled, startRecognition]);
 
   const getStatusMessage = () => {
-    if (!recognizedPerson && unrecognizedFace) {
-      return "Unknown person detected";
-    } else if (recognizedPerson) {
+    if (recognizedPerson) {
       return `${recognizedPerson.name} (${recognizedPerson.confidence.toFixed(1)}% match)`;
     }
     return "No one detected";
@@ -256,30 +229,6 @@ const FaceRecognition = () => {
             <div className="status-message-overlay">
               {getStatusMessage()}
             </div>
-          </div>
-
-          <div className="controls">
-            {unrecognizedFace ? (
-              !isAddingFace ? (
-                <button onClick={() => setIsAddingFace(true)} className="add-face-button">
-                  Add New Face
-                </button>
-              ) : (
-                <form onSubmit={handleAddFace} className="add-face-form">
-                  <input
-                    type="text"
-                    value={newPersonName}
-                    onChange={(e) => setNewPersonName(e.target.value)}
-                    placeholder="Enter person's name"
-                    required
-                  />
-                  <button type="submit">Save Face</button>
-                  <button type="button" onClick={() => setIsAddingFace(false)}>
-                    Cancel
-                  </button>
-                </form>
-              )
-            ) : null}
           </div>
         </>
       )}
