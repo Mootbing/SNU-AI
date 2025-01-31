@@ -21,6 +21,10 @@ const FaceRecognition = () => {
   const lastProcessedTime = useRef(0);
   const THROTTLE_TIME = 300; // 300ms between recognitions
   const [isBackCamera, setIsBackCamera] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [autoTTS, setAutoTTS] = useState(true);
+  const lastSpokenMessage = useRef('');
+  const lastRecognizedName = useRef('');
 
   useEffect(() => {
     const handleResize = () => {
@@ -156,6 +160,19 @@ const FaceRecognition = () => {
     }
   }, [isInitialized, isCameraEnabled, startRecognition]);
 
+  const speakMessage = useCallback((message) => {
+    if (isSpeaking) return;
+
+    const utterance = new SpeechSynthesisUtterance(message);
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => {
+      setIsSpeaking(false);
+    };
+    
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  }, [isSpeaking]);
+
   const getStatusMessage = () => {
     if (recognizedPerson) {
       const currentHour = new Date().getHours();
@@ -167,10 +184,21 @@ const FaceRecognition = () => {
       } else {
         greeting = "Good evening";
       }
-      return `${greeting} ${recognizedPerson.name} (${recognizedPerson.confidence.toFixed(1)}% match)`;
+      return `${greeting} ${recognizedPerson.name}`;
     }
     return "No one detected";
   };
+
+  // Modified auto-speak effect
+  useEffect(() => {
+    if (recognizedPerson && autoTTS) {
+      // Only speak if the name has changed
+      if (lastRecognizedName.current !== recognizedPerson.name) {
+        speakMessage(getStatusMessage());
+        lastRecognizedName.current = recognizedPerson.name;
+      }
+    }
+  }, [recognizedPerson, speakMessage, autoTTS]);
 
   if (!isInitialized) {
     return <div className="initialization-message">Initializing face recognition system...</div>;
@@ -236,8 +264,17 @@ const FaceRecognition = () => {
                   transform: isBackCamera ? 'scaleX(1)' : 'scaleX(-1)'
                 }}
               />
-              <div className="status-message-overlay">
-                {getStatusMessage()}
+              <div className="status-message-container">
+                <div className="status-message-overlay">
+                  {getStatusMessage()}
+                </div>
+                <button 
+                  className="speak-button"
+                  onClick={() => speakMessage(getStatusMessage())}
+                  disabled={isSpeaking}
+                >
+                  {isSpeaking ? '🔊' : '🔈'}
+                </button>
               </div>
             </div>
           </>
