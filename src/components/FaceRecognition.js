@@ -5,11 +5,17 @@ import './FaceRecognition.css';
 
 const FaceRecognition = () => {
   const webcamRef = useRef(null);
+  const videoRef = useRef(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isCameraEnabled, setIsCameraEnabled] = useState(false);
+  const [stream, setStream] = useState(null);
   const [recognizedPerson, setRecognizedPerson] = useState(null);
   const [isAddingFace, setIsAddingFace] = useState(false);
   const [newPersonName, setNewPersonName] = useState('');
   const [error, setError] = useState(null);
+  const [devices, setDevices] = useState([]);
+  const [selectedDevice, setSelectedDevice] = useState(null);
+  const [isMobileSafari] = useState(/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream);
 
   useEffect(() => {
     const initialize = async () => {
@@ -19,8 +25,51 @@ const FaceRecognition = () => {
     initialize();
   }, []);
 
+  const requestCameraAccess = async () => {
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      console.log("Camera access granted!");
+      
+      // Store the stream for later use
+      setStream(mediaStream);
+
+      // Get list of available cameras after permission is granted
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      setDevices(videoDevices);
+      if (videoDevices.length > 0) {
+        setSelectedDevice(videoDevices[0].deviceId);
+      }
+
+      setIsCameraEnabled(true);
+      setError(null);
+
+      // Stop the initial stream since Webcam component will handle the video
+      mediaStream.getTracks().forEach(track => track.stop());
+    } catch (error) {
+      console.error("Camera access denied:", error);
+      setError('Camera access was denied. Please enable camera access in your browser settings.');
+      setIsCameraEnabled(false);
+    }
+  };
+
+  // Clean up function to stop all tracks when component unmounts
+  useEffect(() => {
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [stream]);
+
   const captureImage = () => {
+    if (!webcamRef.current || !isCameraEnabled) {
+      return null;
+    }
     const imageSrc = webcamRef.current.getScreenshot();
+    if (!imageSrc) {
+      return null;
+    }
     return fetch(imageSrc)
       .then(res => res.arrayBuffer())
       .then(buffer => new Uint8Array(buffer));
@@ -30,6 +79,10 @@ const FaceRecognition = () => {
     e.preventDefault();
     try {
       const imageData = await captureImage();
+      if (!imageData) {
+        setError('Failed to capture image. Please try again.');
+        return;
+      }
       await addFaceToCollection(imageData, newPersonName);
       setIsAddingFace(false);
       setNewPersonName('');
@@ -42,8 +95,9 @@ const FaceRecognition = () => {
   const startRecognition = async () => {
     try {
       const imageData = await captureImage();
-      const match = await searchFace(imageData);
+      if (!imageData) return;
       
+      const match = await searchFace(imageData);
       if (match) {
         setRecognizedPerson({
           name: match.Face.ExternalImageId,
@@ -53,33 +107,66 @@ const FaceRecognition = () => {
         setRecognizedPerson(null);
       }
     } catch (err) {
-      setError('Failed to recognize face. Please try again.');
+      console.error('Error searching face:', err);
     }
   };
 
   useEffect(() => {
-    if (isInitialized && !isAddingFace) {
+    if (isInitialized && !isAddingFace && isCameraEnabled) {
       const interval = setInterval(startRecognition, 1000);
       return () => clearInterval(interval);
     }
-  }, [isInitialized, isAddingFace]);
+  }, [isInitialized, isAddingFace, isCameraEnabled]);
 
   if (!isInitialized) {
-    return <div>Initializing...</div>;
+    return <div className="initialization-message">Initializing face recognition system...</div>;
+  }
+
+  if (!isCameraEnabled) {
+    return (
+      <div className="camera-access-container">
+        <h2>Camera Access Required</h2>
+        <p>This app needs access to your camera to recognize faces.</p>
+        <button onClick={requestCameraAccess} className="camera-access-button">
+          Enable Camera
+        </button>
+        {error && <div className="error-message">{error}</div>}
+      </div>
+    );
   }
 
   return (
     <div className="face-recognition-container">
+      {devices.length > 1 && !isMobileSafari && (
+        <div className="camera-selector">
+          <select 
+            value={selectedDevice} 
+            onChange={(e) => setSelectedDevice(e.target.value)}
+          >
+            {devices.map((device, index) => (
+              <option key={device.deviceId} value={device.deviceId}>
+                Camera {index + 1} {device.label ? `(${device.label})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div className="webcam-container">
         <Webcam
           ref={webcamRef}
           audio={false}
           screenshotFormat="image/jpeg"
           videoConstraints={{
-            width: 640,
-            height: 480,
-            facingMode: 'user'
+            width: isMobileSafari ? { ideal: 640 } : 640,
+            height: isMobileSafari ? { ideal: 480 } : 480,
+            facingMode: 'user',
+            deviceId: !isMobileSafari ? selectedDevice : undefined,
+            aspectRatio: 1.333333333,
+            playsInline: true
           }}
+          playsInline={true}
+          forceScreenshotSourceSize={true}
         />
         
         {recognizedPerson && (
