@@ -158,7 +158,16 @@ const FaceRecognition = () => {
 
   const getStatusMessage = () => {
     if (recognizedPerson) {
-      return `${recognizedPerson.name} (${recognizedPerson.confidence.toFixed(1)}% match)`;
+      const currentHour = new Date().getHours();
+      let greeting;
+      if (currentHour < 12) {
+        greeting = "Good morning";
+      } else if (currentHour < 18) {
+        greeting = "Good afternoon";
+      } else {
+        greeting = "Good evening";
+      }
+      return `${greeting} ${recognizedPerson.name} (${recognizedPerson.confidence.toFixed(1)}% match)`;
     }
     return "No one detected";
   };

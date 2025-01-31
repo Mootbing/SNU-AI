@@ -18,14 +18,16 @@ def rename_images():
         extension = file_path.suffix    # Get file extension
         
         # Skip renaming if file contains special keywords
-        if 'martial' in original_name.lower() or 'eminent commander' in original_name.lower():
+        if 'marshall' in original_name.lower() or 'commander' in original_name.lower():
             print(f"Keeping original name for: {original_name}")
             continue
         
         # Split the name and get the last part (lastname)
         name_parts = original_name.split()
         if len(name_parts) > 1:
-            new_name = f"brother_{name_parts[-1].lower()}{extension}"
+            # Capitalize the last name
+            lastname = name_parts[-1].capitalize()
+            new_name = f"Brother_{lastname}{extension}"
             
             # Create the new path
             new_path = file_path.parent / new_name
