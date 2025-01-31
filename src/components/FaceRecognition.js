@@ -23,6 +23,7 @@ const FaceRecognition = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const lastProcessedTime = useRef(0);
   const THROTTLE_TIME = 300; // 300ms between recognitions
+  const [isBackCamera, setIsBackCamera] = useState(false);
 
   useEffect(() => {
     const handleResize = () => {
@@ -36,10 +37,10 @@ const FaceRecognition = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Calculate video dimensions
+  // Update video dimensions to maximize height
   const videoDimensions = {
-    width: Math.min(windowDimensions.width * 0.9, 1280),
-    height: Math.min(windowDimensions.height * 0.7, 720)
+    width: Math.min(windowDimensions.width * 0.95, 1280),
+    height: Math.min(windowDimensions.height * 0.85, 1080) // Increased height percentage
   };
 
   useEffect(() => {
@@ -48,6 +49,13 @@ const FaceRecognition = () => {
       setIsInitialized(success);
     };
     initialize();
+  }, []);
+
+  const findBackCamera = useCallback((videoDevices) => {
+    return videoDevices.findIndex(device => 
+      device.label.toLowerCase().includes('back') || 
+      device.label.toLowerCase().includes('rear')
+    );
   }, []);
 
   const requestCameraAccess = async () => {
@@ -61,6 +69,13 @@ const FaceRecognition = () => {
       const videoDevices = devices.filter(device => device.kind === 'videoinput');
       setDevices(videoDevices);
 
+      // Start with back camera if available
+      const backCameraIndex = findBackCamera(videoDevices);
+      if (backCameraIndex !== -1) {
+        setCurrentDeviceIndex(backCameraIndex);
+        setIsBackCamera(true);
+      }
+
       setIsCameraEnabled(true);
       setError(null);
 
@@ -72,8 +87,14 @@ const FaceRecognition = () => {
     }
   };
 
-  const switchCamera = () => {
-    setCurrentDeviceIndex((prevIndex) => (prevIndex + 1) % devices.length);
+  const handleCameraChange = (e) => {
+    const newIndex = parseInt(e.target.value);
+    setCurrentDeviceIndex(newIndex);
+    
+    const device = devices[newIndex];
+    const isBack = device.label.toLowerCase().includes('back') || 
+                   device.label.toLowerCase().includes('rear');
+    setIsBackCamera(isBack);
   };
 
   // Clean up function to stop all tracks when component unmounts
@@ -160,40 +181,13 @@ const FaceRecognition = () => {
     }
   }, [isInitialized, isAddingFace, isCameraEnabled, startRecognition]);
 
-  const renderFaceBoxes = () => {
-    if (!webcamRef.current) return null;
-
-    const video = webcamRef.current.video;
-    if (!video) return null;
-
-    return detectedFaces.map((face, index) => {
-      const { BoundingBox } = face;
-      if (!BoundingBox) return null;
-
-      // Convert normalized coordinates to pixel values
-      const boxStyle = {
-        left: `${BoundingBox.Left * 100}%`,
-        top: `${BoundingBox.Top * 100}%`,
-        width: `${BoundingBox.Width * 100}%`,
-        height: `${BoundingBox.Height * 100}%`
-      };
-
-      return (
-        <div 
-          key={index}
-          className="face-box"
-          style={boxStyle}
-        >
-          {recognizedPerson && (
-            <div className="face-label">
-              {recognizedPerson.name}
-              <br />
-              {recognizedPerson.confidence.toFixed(1)}%
-            </div>
-          )}
-        </div>
-      );
-    });
+  const getStatusMessage = () => {
+    if (!recognizedPerson && unrecognizedFace) {
+      return "Unknown person detected";
+    } else if (recognizedPerson) {
+      return `${recognizedPerson.name} (${recognizedPerson.confidence.toFixed(1)}% match)`;
+    }
+    return "No one detected";
   };
 
   if (!isInitialized) {
@@ -226,6 +220,22 @@ const FaceRecognition = () => {
         </div>
       ) : (
         <>
+          {devices.length > 1 && (
+            <div className="camera-selector">
+              <select 
+                value={currentDeviceIndex}
+                onChange={handleCameraChange}
+                className="camera-select"
+              >
+                {devices.map((device, index) => (
+                  <option key={device.deviceId} value={index}>
+                    {device.label || `Camera ${index + 1}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="webcam-container">
             <Webcam
               ref={webcamRef}
@@ -234,26 +244,19 @@ const FaceRecognition = () => {
               videoConstraints={{
                 width: videoDimensions.width,
                 height: videoDimensions.height,
-                deviceId: devices[currentDeviceIndex]?.deviceId
+                deviceId: devices[currentDeviceIndex]?.deviceId,
+                facingMode: isBackCamera ? 'environment' : 'user'
               }}
               style={{
                 width: videoDimensions.width,
-                height: videoDimensions.height
+                height: videoDimensions.height,
+                transform: isBackCamera ? 'scaleX(1)' : 'scaleX(-1)'
               }}
             />
-            
-            <div className="face-boxes-container">
-              {renderFaceBoxes()}
+            <div className="status-message-overlay">
+              {getStatusMessage()}
             </div>
           </div>
-
-          {devices.length > 1 && (
-            <button onClick={switchCamera} className="camera-switch-button">
-              Switch Camera ({currentDeviceIndex + 1}/{devices.length})
-            </button>
-          )}
-
-          {error && <div className="error-message">{error}</div>}
 
           <div className="controls">
             {unrecognizedFace ? (

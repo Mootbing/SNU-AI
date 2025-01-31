@@ -6,7 +6,6 @@ function App() {
   return (
     <div className="App">
       <main>
-        <h1>Recog</h1>
         <FaceRecognition />
       </main>
     </div>
