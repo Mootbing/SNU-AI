@@ -1,3 +1,9 @@
+.black-bg {
+  background-color: #000;
+  width: 100vw;
+  height: 100vh;
+}
+
 .face-recognition-container {
   position: fixed;
   top: 0;
@@ -118,13 +124,12 @@ input {
   padding: 2rem;
   max-width: 500px;
   margin: 2rem auto;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  /* border-radius: 8px; */
+  /* box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); */
 }
 
 .camera-access-container h2 {
-  color: #333;
+  color: #000;
   margin-bottom: 1rem;
 }
 
@@ -135,14 +140,14 @@ input {
 }
 
 .camera-access-button {
-  background-color: #28a745;
+  /* background-color: #28a745; */
   padding: 12px 24px;
   font-size: 1.1rem;
   transition: background-color 0.2s;
 }
 
 .camera-access-button:hover {
-  background-color: #218838;
+  /* background-color: #218838; */
 }
 
 .initialization-message {

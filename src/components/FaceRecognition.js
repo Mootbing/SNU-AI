@@ -170,8 +170,8 @@ const FaceRecognition = () => {
   if (!isCameraEnabled) {
     return (
       <div className="camera-access-container">
-        <h2>Camera Access Required</h2>
-        <p>This app needs access to your camera to recognize faces.</p>
+        <h2>ΣΝ Recognizer</h2>
+        <p>No more essays for PC131</p>
         <button onClick={requestCameraAccess} className="camera-access-button">
           Enable Camera
         </button>
@@ -181,57 +181,59 @@ const FaceRecognition = () => {
   }
 
   return (
-    <div className="face-recognition-container">
-      {!isCameraEnabled ? (
-        <div className="camera-access-container">
-          <h2>Camera Access Required</h2>
-          <p>This app needs access to your camera to recognize faces.</p>
-          <button onClick={requestCameraAccess} className="camera-access-button">
-            Enable Camera
-          </button>
-          {error && <div className="error-message">{error}</div>}
-        </div>
-      ) : (
-        <>
-          {devices.length > 1 && (
-            <div className="camera-selector">
-              <select 
-                value={currentDeviceIndex}
-                onChange={handleCameraChange}
-                className="camera-select"
-              >
-                {devices.map((device, index) => (
-                  <option key={device.deviceId} value={index}>
-                    {device.label || `Camera ${index + 1}`}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <div className="webcam-container">
-            <Webcam
-              ref={webcamRef}
-              audio={false}
-              screenshotFormat="image/jpeg"
-              videoConstraints={{
-                width: videoDimensions.width,
-                height: videoDimensions.height,
-                deviceId: devices[currentDeviceIndex]?.deviceId,
-                facingMode: isBackCamera ? 'environment' : 'user'
-              }}
-              style={{
-                width: videoDimensions.width,
-                height: videoDimensions.height,
-                transform: isBackCamera ? 'scaleX(1)' : 'scaleX(-1)'
-              }}
-            />
-            <div className="status-message-overlay">
-              {getStatusMessage()}
-            </div>
+    <div className="black-bg">
+      <div className="face-recognition-container">
+        {!isCameraEnabled ? (
+          <div className="camera-access-container">
+            <h2>Camera Access Required</h2>
+            <p>This app needs access to your camera to recognize faces.</p>
+            <button onClick={requestCameraAccess} className="camera-access-button">
+              Enable Camera
+            </button>
+            {error && <div className="error-message">{error}</div>}
           </div>
-        </>
-      )}
+        ) : (
+          <>
+            {devices.length > 1 && (
+              <div className="camera-selector">
+                <select 
+                  value={currentDeviceIndex}
+                  onChange={handleCameraChange}
+                  className="camera-select"
+                >
+                  {devices.map((device, index) => (
+                    <option key={device.deviceId} value={index}>
+                      {device.label || `Camera ${index + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="webcam-container">
+              <Webcam
+                ref={webcamRef}
+                audio={false}
+                screenshotFormat="image/jpeg"
+                videoConstraints={{
+                  width: videoDimensions.width,
+                  height: videoDimensions.height,
+                  deviceId: devices[currentDeviceIndex]?.deviceId,
+                  facingMode: isBackCamera ? 'environment' : 'user'
+                }}
+                style={{
+                  width: videoDimensions.width,
+                  height: videoDimensions.height,
+                  transform: isBackCamera ? 'scaleX(1)' : 'scaleX(-1)'
+                }}
+              />
+              <div className="status-message-overlay">
+                {getStatusMessage()}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 };
