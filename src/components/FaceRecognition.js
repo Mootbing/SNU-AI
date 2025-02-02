@@ -19,7 +19,7 @@ const FaceRecognition = () => {
   const [detectedFaces, setDetectedFaces] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const lastProcessedTime = useRef(0);
-  const THROTTLE_TIME = 300; // 300ms between recognitions
+  const THROTTLE_TIME = 1000; // 1s between recognitions
   const [isBackCamera, setIsBackCamera] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [autoTTS, setAutoTTS] = useState(true);
